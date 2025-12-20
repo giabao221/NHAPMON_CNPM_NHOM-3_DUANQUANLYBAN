@@ -634,5 +634,133 @@ class OrderPage(ttk.Frame):
             self.app.pages["tables"].refresh()
         else:
             messagebox.showerror("Lỗi", msg)
+# ==============================
+# Trang hồ sơ bàn & nghiệp vụ
+# ==============================
+class TablesPage(ttk.Frame):
+    def __init__(self, parent, app, beer: BeerStore):
+        super().__init__(parent); self.app = app; self.beer = beer
+        # top bar actions
+        top = tk.Frame(self, bg=WHITE); top.pack(fill="x", padx=10, pady=10)
+        tk.Label(top, text="Hồ sơ bàn", font=FONT_TITLE, fg=PINK_DARK, bg=WHITE).pack(side="left")
+        ttk.Button(top, text="Đăng xuất", style="Danger.TButton", command=self.logout).pack(side="right", padx=6)
+        ttk.Button(top, text="Đặt bàn trước", style="Pastel.TButton", command=self.reserve_dialog).pack(side="right", padx=6)
+        ttk.Button(top, text="Chuyển order", style="Pastel.TButton", command=self.move_dialog).pack(side="right", padx=6)
+        ttk.Button(top, text="Ghép order", style="Pastel.TButton", command=self.merge_dialog).pack(side="right", padx=6)
+        ttk.Button(top, text="Khóa bàn", style="Pastel.TButton", command=self.lock_dialog).pack(side="right", padx=6)
+
+        self.summary = tk.Label(self, text="", font=FONT_SUBTITLE, fg=GRAY_TEXT, bg=WHITE)
+        self.summary.pack(anchor="w", padx=14)
+
+        # grid
+        self.grid_frame = tk.Frame(self, bg=WHITE)
+        self.grid_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        self.refresh()
+
+    def logout(self):
+        self.app.store.logout()
+        messagebox.showinfo("Đăng xuất", "Bạn đã đăng xuất.")
+        self.app.show_page("login")
+
+    def refresh(self):
+        for w in self.grid_frame.winfo_children():
+            w.destroy()
+        running = self.beer.running_count()
+        self.summary.config(text=f"Bàn đang chạy: {running} / Tổng: {len(self.beer.tables)}")
+        # Render tables
+        cols = 4
+        i = 0
+        for t in self.beer.tables.values():
+            frame = tk.Frame(self.grid_frame, bg=self.beer.table_color(t["status"]), width=160, height=120)
+            frame.grid(row=i//cols, column=i%cols, padx=8, pady=8, sticky="nsew")
+            frame.grid_propagate(False)
+            tk.Label(frame, text=t["code"], font=FONT_BUTTON, fg=WHITE, bg=self.beer.table_color(t["status"])).pack(pady=(10,0))
+            tk.Label(frame, text=f"{t['area']} • {t['status']}", font=FONT_SUBTITLE, fg=WHITE, bg=self.beer.table_color(t["status"])).pack()
+            btn_frame = tk.Frame(frame, bg=self.beer.table_color(t["status"]))
+            btn_frame.pack(pady=6)
+            if t["current_order_id"]:
+                ttk.Button(btn_frame, text="Order", style="Pastel.TButton",
+                           command=lambda oid=t["current_order_id"]: self.open_order(oid)).pack(side="left", padx=4)
+            elif t["status"] in ("free", "reserved"):
+                ttk.Button(btn_frame, text="Check-in", style="Pastel.TButton",
+                           command=lambda tid=t["id"]: self.checkin(tid)).pack(side="left", padx=4)
+            ttk.Button(btn_frame, text="Chi tiết", style="Pastel.TButton",
+                       command=lambda tid=t["id"]: self.table_detail(tid)).pack(side="left", padx=4)
+            i += 1
+
+    def checkin(self, table_id):
+        # kiểm tra ID bàn trước khi check-in
+        if table_id not in self.beer.tables:
+            messagebox.showerror("Lỗi", f"Bàn ID {table_id} không tồn tại.")
+            return
+        ok, res = self.beer.checkin_table(table_id)
+        if ok:
+            messagebox.showinfo("Check-in", f"Tạo order #{res}")
+            self.refresh()
+            self.open_order(res)
+        else:
+            messagebox.showerror("Lỗi", res)
+
+    def table_detail(self, table_id):
+        t = self.beer.tables.get(table_id)
+        if not t:
+            messagebox.showerror("Lỗi", f"Bàn ID {table_id} không tồn tại.")
+            return
+        msg = f"Bàn {t['code']}\nKhu: {t['area']}\nTrạng thái: {t['status']}\nOrder hiện tại: {t['current_order_id'] or '-'}"
+        messagebox.showinfo("Chi tiết bàn", msg)
+
+    def open_order(self, order_id):
+        self.app.pages["order"].set_order(order_id)
+        self.app.show_page("order")
+
+    # dialogs
+    def reserve_dialog(self):
+        try:
+            table_id = int(simpledialog.askstring("Đặt bàn", "ID bàn:"))
+        except:
+            return
+        name = simpledialog.askstring("Đặt bàn", "Tên khách:")
+        phone = simpledialog.askstring("Đặt bàn", "SĐT:")
+        start = simpledialog.askstring("Đặt bàn", "Bắt đầu (YYYY-MM-DDTHH:MM):")
+        end = simpledialog.askstring("Đặt bàn", "Kết thúc (YYYY-MM-DDTHH:MM):")
+        if not (table_id and name and phone and start and end):
+            return
+        try:
+            start_at = datetime.fromisoformat(start); end_at = datetime.fromisoformat(end)
+        except:
+            messagebox.showerror("Lỗi", "Định dạng thời gian sai."); return
+        ok, msg = self.beer.create_reservation(table_id, name, phone, start_at, end_at)
+        messagebox.showinfo("Đặt bàn", msg if ok else f"Lỗi: {msg}")
+        self.refresh()
+
+    def move_dialog(self):
+        try:
+            src = int(simpledialog.askstring("Chuyển order", "Bàn nguồn ID:"))
+            dst = int(simpledialog.askstring("Chuyển order", "Bàn đích ID:"))
+        except:
+            return
+        ok, msg = self.beer.move_order(src, dst)
+        messagebox.showinfo("Chuyển order", msg if ok else f"Lỗi: {msg}")
+        self.refresh()
+
+    def merge_dialog(self):
+        try:
+            a = int(simpledialog.askstring("Ghép order", "Bàn A ID:"))
+            b = int(simpledialog.askstring("Ghép order", "Bàn B ID:"))
+        except:
+            return
+        ok, msg = self.beer.merge_order(a, b)
+        messagebox.showinfo("Ghép order", msg if ok else f"Lỗi: {msg}")
+        self.refresh()
+
+    def lock_dialog(self):
+        try:
+            tid = int(simpledialog.askstring("Khóa bàn", "ID bàn:"))
+        except:
+            return
+        ok, msg = self.beer.lock_table(tid)
+        messagebox.showinfo("Khóa bàn", msg if ok else f"Lỗi: {msg}")
+        self.refresh()
 if __name__ == "__main__":
     PastelAuthApp().mainloop()
