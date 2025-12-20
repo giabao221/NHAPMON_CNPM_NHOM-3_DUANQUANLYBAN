@@ -983,5 +983,106 @@ class BeerStore:
         self.recalc_order(oid)
         self._save()
         return True, oid
+    
+# ---- Move/Merge/Lock ----
+    def lock_table(self, table_id):
+        tbl = self.tables.get(table_id)
+        if not tbl:
+            return False, "Không tìm thấy bàn."
+        tbl["status"] = "locked"
+        self._save()
+        return True, "Đã khóa bàn tạm thời."
+
+    def move_order(self, src_table_id, dst_table_id):
+        src = self.tables.get(src_table_id)
+        dst = self.tables.get(dst_table_id)
+        if not src or not dst:
+            return False, "Không tìm thấy bàn nguồn/đích."
+        if not src["current_order_id"]:
+            return False, "Bàn nguồn không có order."
+        if dst["status"] not in ("free", "reserved"):
+            return False, "Bàn đích không trống."
+        dst["current_order_id"] = src["current_order_id"]
+        dst["status"] = "running"
+        src["current_order_id"] = None
+        src["status"] = "free"
+        self._save()
+        return True, "Chuyển order thành công."
+
+    def merge_order(self, table_a_id, table_b_id):
+        ta = self.tables.get(table_a_id)
+        tb = self.tables.get(table_b_id)
+        if not ta or not tb:
+            return False, "Không tìm thấy bàn A/B."
+        oa = ta["current_order_id"]
+        ob = tb["current_order_id"]
+        if not (oa and ob):
+            return False, "Cần 2 bàn đều có order."
+        # Chuyển item của B sang A
+        for it in list(self.order_items):
+            if it["order_id"] == ob:
+                it["order_id"] = oa
+        order_a = self.orders[oa]
+        order_b = self.orders[ob]
+        order_a["started_at"] = min(order_a["started_at"], order_b["started_at"])
+        order_b["status"] = "canceled"
+        tb["current_order_id"] = None
+        tb["status"] = "free"
+        self.recalc_order(oa)
+        self._save()
+        return True, "Ghép order thành công."
+
+    # ---- Order & Items ----
+    def add_item(self, order_id, product_id, qty):
+        order = self.orders.get(order_id)
+        prod = self.products.get(product_id)
+        if not order or not prod:
+            return False, "Không tìm thấy order hoặc sản phẩm."
+        item = {
+            "id": len(self.order_items)+1,
+            "order_id": order_id,
+            "product_id": product_id,
+            "qty": qty,
+            "unit_price": prod["base_price"],
+            "discount": 0.0,
+            "served": False,
+        }
+        self.order_items.append(item)
+        self.recalc_order(order_id)
+        self._save()
+        return True, "Đã thêm món."
+
+    def serve_item(self, item_id):
+        it = next((x for x in self.order_items if x["id"] == item_id), None)
+        if not it:
+            return False, "Không tìm thấy item."
+        if it["served"]:
+            return False, "Item đã phục vụ."
+        it["served"] = True
+        prod = self.products[it["product_id"]]
+        prod["stock_qty"] = (prod["stock_qty"] or 0.0) - it["qty"]
+        self.recalc_order(it["order_id"])
+        self._save()
+        return True, "Đã phục vụ và trừ tồn kho."
+
+    def pay_order(self, order_id, method="cash"):
+        order = self.orders.get(order_id)
+        if not order:
+            return False, "Không tìm thấy order."
+        order["closed_at"] = datetime.now()
+        order["status"] = "paid"
+        self.recalc_order(order_id)
+        # tích điểm: 1 điểm mỗi 10k
+        username = order.get("customer_username")
+        if username and username in self.users.users:
+            points_add = int(order["total"] // 10000)
+            self.users.users[username]["points"] += points_add
+            self.users._save()
+        # giải phóng bàn
+        tbl = self.tables[order["table_id"]]
+        tbl["status"] = "free"
+        tbl["current_order_id"] = None
+        self._save()
+        return True, f"Đã thanh toán {order['total']:.0f} bằng {method}."
 if __name__ == "__main__":
     PastelAuthApp().mainloop()
