@@ -529,6 +529,110 @@ def str_to_time(s: str):
     h, m = map(int, s.split(":"))
     return dtime(h, m)
 
-if _name_ == "_main_":
+# ==============================
+# Trang Order: thêm món, phục vụ, in phiếu/hóa đơn, thanh toán
+# ==============================
+class OrderPage(ttk.Frame):
+    def __init__(self, parent, app, beer: BeerStore):
+        super().__init__(parent); self.app = app; self.beer = beer; self.order_id = None
+
+        header = tk.Frame(self, bg=WHITE); header.pack(fill="x", padx=10, pady=10)
+        self.title = tk.Label(header, text="Order", font=FONT_TITLE, fg=PINK_DARK, bg=WHITE)
+        self.title.pack(side="left")
+        ttk.Button(header, text="Về bàn", style="Pastel.TButton", command=lambda: self.app.show_page("tables")).pack(side="right", padx=6)
+
+        body = tk.Frame(self, bg=WHITE); body.pack(fill="both", expand=True, padx=10, pady=10)
+        # items table
+        self.tree = ttk.Treeview(body, columns=("product","qty","price","discount","served"), show="headings", height=10)
+        for c, w in [("product",180),("qty",60),("price",100),("discount",100),("served",80)]:
+            self.tree.heading(c, text=c.capitalize()); self.tree.column(c, width=w, anchor="center")
+        self.tree.pack(fill="both", expand=True)
+
+        # add item controls
+        ctrl = tk.Frame(body, bg=WHITE); ctrl.pack(fill="x", pady=8)
+        self.product_var = tk.StringVar(); self.qty_var = tk.StringVar(value="1")
+        prod_names = [f"{p['id']} - {p['name']} ({p['base_price']:.0f})" for p in self.beer.products.values()]
+        ttk.Combobox(ctrl, textvariable=self.product_var, values=prod_names, state="readonly", width=40).pack(side="left", padx=6)
+        ttk.Entry(ctrl, textvariable=self.qty_var, width=6).pack(side="left", padx=6)
+        ttk.Button(ctrl, text="Thêm món", style="Pastel.TButton", command=self.add_item).pack(side="left", padx=6)
+        ttk.Button(ctrl, text="Phục vụ (trừ kho)", style="Pastel.TButton", command=self.serve_selected).pack(side="left", padx=6)
+
+        # totals
+        self.totals = tk.Label(body, text="", font=FONT_SUBTITLE, fg=GRAY_TEXT, bg=WHITE)
+        self.totals.pack(anchor="e")
+
+        # actions
+        actions = tk.Frame(body, bg=WHITE); actions.pack(fill="x", pady=6)
+        ttk.Button(actions, text="In phiếu", style="Pastel.TButton", command=self.print_ticket).pack(side="left", padx=6)
+        ttk.Button(actions, text="Xem hóa đơn", style="Pastel.TButton", command=self.print_invoice).pack(side="left", padx=6)
+        self.pay_method = tk.StringVar(value="cash")
+        ttk.Combobox(actions, textvariable=self.pay_method, values=["cash","card","momo"], state="readonly", width=10).pack(side="right", padx=6)
+        ttk.Button(actions, text="Thanh toán", style="Danger.TButton", command=self.pay).pack(side="right", padx=6)
+
+    def set_order(self, order_id):
+        self.order_id = order_id
+        self.refresh()
+
+    def refresh(self):
+        if not self.order_id: return
+        order = self.beer.orders[self.order_id]
+        tbl = self.beer.tables[order["table_id"]]
+        self.title.config(text=f"Order #{order['id']} • Bàn {tbl['code']} • {order['status']}")
+        # reload items
+        for i in self.tree.get_children(): self.tree.delete(i)
+        for it in [x for x in self.beer.order_items if x["order_id"] == self.order_id]:
+            self.tree.insert("", "end", iid=str(it["id"]), values=(
+                it["product_id"], it["qty"], f"{it['unit_price']:.0f}", f"{it['discount']:.0f}", "Yes" if it["served"] else "No"
+            ))
+        # totals
+        self.beer.recalc_order(self.order_id)
+        o = self.beer.orders[self.order_id]
+        self.totals.config(text=f"Tạm tính: {o['subtotal']:.0f} | Tiền giờ: {o['time_charge']:.0f} | Giảm giá ({o['voucher_code'] or 'auto'}): {o['discount']:.0f} | Tổng: {o['total']:.0f}")
+
+    def add_item(self):
+        if not self.product_var.get(): return
+        try:
+            pid = int(self.product_var.get().split(" - ")[0]); qty = float(self.qty_var.get())
+        except:
+            messagebox.showerror("Lỗi", "Chọn sản phẩm và số lượng hợp lệ."); return
+        ok, msg = self.beer.add_item(self.order_id, pid, qty)
+        if not ok: messagebox.showerror("Lỗi", msg)
+        self.refresh()
+
+    def serve_selected(self):
+        sel = self.tree.selection()
+        if not sel: return
+        item_id = int(sel[0])
+        ok, msg = self.beer.serve_item(item_id)
+        if not ok: messagebox.showerror("Lỗi", msg)
+        self.refresh()
+
+    def print_ticket(self):
+        o = self.beer.orders[self.order_id]
+        lines = [f"Phiếu Order #{o['id']} - Bàn {self.beer.tables[o['table_id']]['code']}"]
+        for it in [x for x in self.beer.order_items if x["order_id"] == self.order_id]:
+            lines.append(f"SP {it['product_id']} x {it['qty']} = {(it['unit_price']*it['qty']):.0f}")
+        messagebox.showinfo("Phiếu", "\n".join(lines))
+
+    def print_invoice(self):
+        o = self.beer.orders[self.order_id]; self.beer.recalc_order(self.order_id)
+        lines = [
+            f"Hóa đơn #{o['id']} - Bàn {self.beer.tables[o['table_id']]['code']}",
+            f"Tạm tính: {o['subtotal']:.0f}",
+            f"Tiền giờ: {o['time_charge']:.0f}",
+            f"Giảm giá ({o['voucher_code'] or 'auto'}): {o['discount']:.0f}",
+            f"Tổng: {o['total']:.0f}",
+            f"Thời điểm: {datetime.now()}",
+        ]
+        messagebox.showinfo("Hóa đơn", "\n".join(lines))
+
+    def pay(self):
+        ok, msg = self.beer.pay_order(self.order_id, self.pay_method.get())
+        if ok:
+            messagebox.showinfo("Thanh toán", msg)
+            self.app.show_page("tables")
+            self.app.pages["tables"].refresh()
+        else:
+            messagebox.showerror("Lỗi", msg)
+if __name__ == "__main__":
     PastelAuthApp().mainloop()
-    
