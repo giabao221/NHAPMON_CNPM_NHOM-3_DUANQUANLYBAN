@@ -419,3 +419,101 @@ class HomePage(ttk.Frame):
         self.store.logout()
         messagebox.showinfo("Đăng xuất", "Bạn đã đăng xuất.")
         self.app.show_page("login")
+
+# ==============================
+# Ứng dụng chính
+# ==============================
+class PastelAuthApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Quan ly ban BILLIARDS")
+        self.geometry("860x520")
+        self.minsize(900, 600)
+        self.configure(bg=PASTEL_PINK)
+        self._center()
+
+        self.store = UserStore()
+        self._setup_style()
+
+        container = ttk.Frame(self, style="Root.TFrame")
+        container.pack(fill="both", expand=True, padx=8, pady=8)
+
+        # tạo các trang
+        self.pages = {
+            "login": LoginPage(container, self, self.store),
+            "register": RegisterPage(container, self, self.store),
+            "forgot": ForgotPage(container, self, self.store),
+            "reset": ResetPage(container, self, self.store),
+            "home": HomePage(container, self, self.store),
+        }
+
+        # đặt layout stack
+        for p in self.pages.values():
+            p.place(relx=0, rely=0, relwidth=1, relheight=1)
+
+        self.show_page("login")
+
+        # thanh tiêu đề nhỏ (fake) pastel
+        self._build_topbar()
+
+    def _center(self):
+        self.update_idletasks()
+        w = self.winfo_width()
+        h = self.winfo_height()
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        x = (sw - w) // 2
+        y = (sh - h) // 3
+        self.geometry(f"{w}x{h}+{x}+{y}")
+
+    def _setup_style(self):
+        style = ttk.Style(self)
+        # sử dụng theme 'clam' cho linh hoạt màu
+        style.theme_use("clam")
+
+        style.configure("Root.TFrame", background=PASTEL_PINK)
+
+        # Entry
+        style.configure("TEntry", padding=8, fieldbackground=WHITE, bordercolor=PINK_LIGHT, lightcolor=PINK_LIGHT, darkcolor=PINK_LIGHT, foreground="#303030")
+        style.map("TEntry", bordercolor=[("focus", PINK_DARK)], lightcolor=[("focus", PINK_DARK)], darkcolor=[("focus", PINK_DARK)])
+
+        # Button chính
+        style.configure("Pastel.TButton",
+                        font=FONT_BUTTON,
+                        foreground=WHITE,
+                        background=PINK_DARK,
+                        padding=8,
+                        borderwidth=0)
+        style.map("Pastel.TButton",
+                  background=[("active", "#B36494")])
+
+        # Button nguy cơ (logout)
+        style.configure("Danger.TButton",
+                        font=FONT_BUTTON,
+                        foreground=WHITE,
+                        background=ERROR_RED,
+                        padding=8,
+                        borderwidth=0)
+        style.map("Danger.TButton",
+                  background=[("active", "#C5423E")])
+
+    def _build_topbar(self):
+        topbar = tk.Frame(self, bg=PINK_LIGHT, height=42)
+        topbar.pack(fill="x", side="top")
+        tk.Label(topbar, text="Quan ly ban BIllIARDS", font=FONT_TITLE, fg=PINK_DARK, bg=PINK_LIGHT).pack(side="left", padx=12)
+        nav = tk.Frame(topbar, bg=PINK_LIGHT)
+        nav.pack(side="right", padx=8)
+        # các nút chuyển nhanh
+        ttk.Button(nav, text="Đăng nhập", style="Pastel.TButton", command=lambda: self.show_page("login")).pack(side="left", padx=4)
+        ttk.Button(nav, text="Đăng ký", style="Pastel.TButton", command=lambda: self.show_page("register")).pack(side="left", padx=4)
+        ttk.Button(nav, text="Quên mật khẩu", style="Pastel.TButton", command=lambda: self.show_page("forgot")).pack(side="left", padx=4)
+
+    def show_page(self, name):
+        page = self.pages.get(name)
+        if not page:
+            return
+        page.tkraise()
+
+if _name_ == "_main_":
+    PastelAuthApp().mainloop()
+    
