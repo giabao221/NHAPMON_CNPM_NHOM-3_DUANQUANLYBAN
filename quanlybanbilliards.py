@@ -513,6 +513,21 @@ class PastelAuthApp(tk.Tk):
         if not page:
             return
         page.tkraise()
+# ==============================
+# Tiện ích serialize/deserialize thời gian
+# ==============================
+def dt_to_str(dt):
+    return dt.isoformat() if dt else None
+
+def str_to_dt(s):
+    return datetime.fromisoformat(s) if s else None
+
+def time_to_str(t: dtime):
+    return f"{t.hour:02d}:{t.minute:02d}"
+
+def str_to_time(s: str):
+    h, m = map(int, s.split(":"))
+    return dtime(h, m)
 
 if _name_ == "_main_":
     PastelAuthApp().mainloop()
