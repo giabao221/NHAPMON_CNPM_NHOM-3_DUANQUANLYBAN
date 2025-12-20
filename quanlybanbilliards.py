@@ -236,3 +236,186 @@ class PastelCard(ttk.Frame):
         box = tk.Frame(self.body, bg=color)
         box.pack(fill="x", pady=(0, 8))
         tk.Label(box, text=text, font=FONT_SUBTITLE, fg=fg, bg=color, wraplength=380, justify="left").pack(anchor="w", padx=10, pady=8)
+# ==============================
+# Các trang
+# ==============================
+class LoginPage(ttk.Frame):
+    def __init__(self, parent, app, store):
+        super().__init__(parent)
+        self.app = app
+        self.store = store
+
+        # backdrop
+        self.backdrop = AnimatedBackdrop(self)
+        self.backdrop.pack(side="left", fill="both", expand=True)
+
+        # card
+        self.card = PastelCard(self, title="Đăng nhập")
+        self.card.pack(side="right", fill="both", expand=True)
+
+        self.card.add_description("Chào mừng trở lại! Hãy đăng nhập để tiếp tục.")
+
+        self.username = self.card.add_field("Tên người dùng")
+        self.password = self.card.add_field("Mật khẩu", show="*")
+
+        self.card.add_link("Quên mật khẩu?", self.goto_forgot)
+        self.card.add_link("Chưa có tài khoản? Đăng ký", self.goto_register)
+        self.card.add_button("Đăng nhập", self.do_login)
+
+    def goto_forgot(self):
+        self.app.show_page("forgot")
+
+    def goto_register(self):
+        self.app.show_page("register")
+
+    def do_login(self):
+        ok, msg = self.store.login(self.username.get().strip(), self.password.get().strip())
+        if ok:
+            messagebox.showinfo("Thành công", msg)
+            self.app.show_page("tables")
+        else:
+            self.card.add_banner(msg, kind="error")
+
+class RegisterPage(ttk.Frame):
+    def __init__(self, parent, app, store):
+        super().__init__(parent)
+        self.app = app
+        self.store = store
+
+        self.backdrop = AnimatedBackdrop(self)
+        self.backdrop.pack(side="left", fill="both", expand=True)
+
+        self.card = PastelCard(self, title="Đăng ký")
+        self.card.pack(side="right", fill="both", expand=True)
+
+        self.card.add_description("Tạo tài khoản mới với vài bước đơn giản.")
+
+        self.username = self.card.add_field("Tên người dùng")
+        self.email = self.card.add_field("Email")
+        self.password = self.card.add_field("Mật khẩu", show="*")
+        self.confirm = self.card.add_field("Xác nhận mật khẩu", show="*")
+
+        self.card.add_link("Đã có tài khoản? Đăng nhập", self.goto_login)
+        self.card.add_button("Tạo tài khoản", self.do_register)
+
+    def goto_login(self):
+        self.app.show_page("login")
+
+    def do_register(self):
+        u = self.username.get().strip()
+        e = self.email.get().strip()
+        p = self.password.get().strip()
+        c = self.confirm.get().strip()
+        if p != c:
+            self.card.add_banner("Mật khẩu xác nhận không khớp.", kind="error")
+            return
+        ok, msg = self.store.register(u, e, p)
+        if ok:
+            self.card.add_banner(msg, kind="success")
+        else:
+            self.card.add_banner(msg, kind="error")
+
+class ForgotPage(ttk.Frame):
+    def __init__(self, parent, app, store):
+        super().__init__(parent)
+        self.app = app
+        self.store = store
+
+        self.backdrop = AnimatedBackdrop(self)
+        self.backdrop.pack(side="left", fill="both", expand=True)
+
+        self.card = PastelCard(self, title="Quên mật khẩu")
+        self.card.pack(side="right", fill="both", expand=True)
+
+        self.card.add_description("Nhập tên người dùng hoặc email. Bạn sẽ nhận được mã để đặt lại mật khẩu.")
+
+        self.target = self.card.add_field("Tên người dùng / Email")
+
+        self.card.add_link("Đã nhớ mật khẩu? Đăng nhập", self.goto_login)
+        self.card.add_link("Có mã rồi? Đặt lại mật khẩu", self.goto_reset)
+        self.card.add_button("Gửi mã đặt lại", self.do_request)
+
+    def goto_login(self):
+        self.app.show_page("login")
+
+    def goto_reset(self):
+        self.app.show_page("reset")
+
+    def do_request(self):
+        t = self.target.get().strip()
+        ok, msg = self.store.request_reset(t)
+        if ok:
+            # Hiển thị mã để người dùng dùng ở trang đặt lại
+            self.card.add_banner(msg, kind="info")
+        else:
+            self.card.add_banner(msg, kind="error")
+
+class ResetPage(ttk.Frame):
+    def __init__(self, parent, app, store):
+        super().__init__(parent)
+        self.app = app
+        self.store = store
+
+        self.backdrop = AnimatedBackdrop(self)
+        self.backdrop.pack(side="left", fill="both", expand=True)
+
+        self.card = PastelCard(self, title="Đặt lại mật khẩu")
+        self.card.pack(side="right", fill="both", expand=True)
+
+        self.card.add_description("Nhập tên người dùng, mã xác nhận và mật khẩu mới.")
+
+        self.username = self.card.add_field("Tên người dùng")
+        self.code = self.card.add_field("Mã xác nhận")
+        self.new_password = self.card.add_field("Mật khẩu mới", show="*")
+        self.confirm = self.card.add_field("Xác nhận mật khẩu", show="*")
+
+        self.card.add_link("Quay về đăng nhập", self.goto_login)
+        self.card.add_button("Đặt lại", self.do_reset)
+
+    def goto_login(self):
+        self.app.show_page("login")
+
+    def do_reset(self):
+        u = self.username.get().strip()
+        code = self.code.get().strip()
+        p1 = self.new_password.get().strip()
+        p2 = self.confirm.get().strip()
+        if p1 != p2:
+            self.card.add_banner("Mật khẩu xác nhận không khớp.", kind="error")
+            return
+        ok, msg = self.store.reset_password(u, code, p1)
+        if ok:
+            self.card.add_banner(msg, kind="success")
+        else:
+            self.card.add_banner(msg, kind="error")
+
+class HomePage(ttk.Frame):
+    def __init__(self, parent, app, store):
+        super().__init__(parent)
+        self.app = app
+        self.store = store
+
+        self.backdrop = AnimatedBackdrop(self)
+        self.backdrop.pack(side="left", fill="both", expand=True)
+
+        self.card = PastelCard(self, title="Trang chính")
+        self.card.pack(side="right", fill="both", expand=True)
+
+        self.welcome_label = tk.Label(self.card.body, text="", font=FONT_PRIMARY, fg=PINK_DARK, bg=WHITE)
+        self.welcome_label.pack(anchor="w", pady=(0, 10))
+        self.card.add_description("Bạn đã đăng nhập thành công. Khám phá ứng dụng với phong cách pastel dịu mắt.")
+
+        self.card.add_button("Đăng xuất", self.do_logout, style="Danger.TButton")
+
+    def tkraise(self, aboveThis=None):
+        # cập nhật lời chào động khi vào trang
+        if self.store.current_user:
+            self.welcome_label.config(text=f"Xin chào, {self.store.current_user} ✨")
+        else:
+            self.welcome_label.config(text="")
+        super().tkraise(aboveThis)
+
+    def do_logout(self):
+        self.store.logout()
+        messagebox.showinfo("Đăng xuất", "Bạn đã đăng xuất.")
+        self.app.show_page("login")
