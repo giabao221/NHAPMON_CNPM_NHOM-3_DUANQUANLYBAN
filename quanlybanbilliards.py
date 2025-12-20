@@ -183,3 +183,56 @@ def math_sin(x):
 def math_cos(x):
     import math
     return math.cos(x)
+# ==============================
+# Base frame với thẩm mỹ & layout
+# ==============================
+class PastelCard(ttk.Frame):
+    def __init__(self, parent, title=""):
+        super().__init__(parent, padding=16)
+        # nền card
+        self.card = tk.Frame(self, bg=WHITE, highlightthickness=0)
+        self.card.pack(fill="both", expand=True)
+        # header
+        self.header = tk.Frame(self.card, bg=WHITE)
+        self.header.pack(fill="x", pady=(8, 0))
+        self.title_label = tk.Label(self.header, text=title, font=FONT_TITLE, fg=PINK_DARK, bg=WHITE)
+        self.title_label.pack(anchor="w")
+
+        # body
+        self.body = tk.Frame(self.card, bg=WHITE)
+        self.body.pack(fill="both", expand=True, pady=8)
+
+        # footer
+        self.footer = tk.Frame(self.card, bg=WHITE)
+        self.footer.pack(fill="x", pady=(8, 12))
+
+    def add_description(self, text):
+        tk.Label(self.body, text=text, font=FONT_SUBTITLE, fg=GRAY_TEXT, bg=WHITE, wraplength=380, justify="left").pack(anchor="w", pady=(0, 8))
+
+    def add_field(self, label, show=None):
+        frame = tk.Frame(self.body, bg=WHITE)
+        frame.pack(fill="x", pady=6)
+        tk.Label(frame, text=label, font=FONT_PRIMARY, fg=GRAY_TEXT, bg=WHITE).pack(anchor="w")
+        entry = ttk.Entry(frame, font=FONT_PRIMARY)
+        if show:
+            entry.configure(show=show)
+        entry.pack(fill="x", pady=4)
+        return entry
+
+    def add_button(self, text, command, style="Pastel.TButton"):
+        btn = ttk.Button(self.footer, text=text, command=command, style=style)
+        btn.pack(side="right", padx=6)
+        return btn
+
+    def add_link(self, text, command):
+        link = tk.Label(self.footer, text=text, font=FONT_SUBTITLE, fg=PINK_DARK, bg=WHITE, cursor="hand2")
+        link.bind("<Button-1>", lambda e: command())
+        link.pack(side="left", padx=6)
+        return link
+
+    def add_banner(self, text, kind="info"):
+        color = {"info": PINK_LIGHT, "success": "#E8F6EF", "error": "#FDECEC"}.get(kind, PINK_LIGHT)
+        fg = {"info": PINK_DARK, "success": SUCCESS_GREEN, "error": ERROR_RED}.get(kind, PINK_DARK)
+        box = tk.Frame(self.body, bg=color)
+        box.pack(fill="x", pady=(0, 8))
+        tk.Label(box, text=text, font=FONT_SUBTITLE, fg=fg, bg=color, wraplength=380, justify="left").pack(anchor="w", padx=10, pady=8)
