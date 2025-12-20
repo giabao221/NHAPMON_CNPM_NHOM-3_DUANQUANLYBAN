@@ -762,5 +762,226 @@ class TablesPage(ttk.Frame):
         ok, msg = self.beer.lock_table(tid)
         messagebox.showinfo("Khóa bàn", msg if ok else f"Lỗi: {msg}")
         self.refresh()
+# ==============================
+# Hệ thống nghiệp vụ quán bia (có lưu file)
+# ==============================
+class BeerStore:
+    def __init__(self, user_store: UserStore, filepath="beerstore.json"):
+        self.filepath = filepath
+        self.users = user_store
+
+        # Bàn: id -> dict
+        self.tables = {}
+        # Sản phẩm: id -> dict
+        self.products = {}
+        # Vouchers: code -> dict
+        self.vouchers = {}
+        # Price rules (khung giờ)
+        self.price_rules = []
+        # Orders: id -> dict
+        self.orders = {}
+        # OrderItems: list
+        self.order_items = []
+        # Reservations
+        self.reservations = []
+        # Số tăng id
+        self._order_seq = 1
+
+        self._load_or_seed()
+
+    def _seed(self):
+        # Tạo 12 bàn
+        for i in range(1, 13):
+            self.tables[i] = {
+                "id": i,
+                "code": f"T{i:02d}",
+                "area": "Khu A" if i <= 6 else "Khu B",
+                "status": "free",
+                "current_order_id": None,
+            }
+        # Sản phẩm
+        self.products[1] = {"id":1,"sku":"BEER1","name":"Bia Lager","base_price":20000,"unit":"chai","stock_qty":200}
+        self.products[2] = {"id":2,"sku":"SNACK1","name":"Bim bim","base_price":15000,"unit":"bì","stock_qty":120}
+        self.products[3] = {"id":3,"sku":"SNACK2","name":"Đậu phộng","base_price":15000,"unit":"dĩa","stock_qty":50}
+        self.products[4] = {"id":4,"sku":"DRINK1","name":"Sting","base_price":25000,"unit":"chai","stock_qty":50}
+        self.products[5] = {"id":5,"sku":"SNACK3","name":"Khô gà","base_price":35000,"unit":"dĩa","stock_qty":50}
+        self.products[6] = {"id":6,"sku":"SNACK4","name":"Khô mực","base_price":150000,"unit":"dĩa","stock_qty":50}
+        # Khung giờ: lưu dạng chuỗi HH:MM để serialize
+        self.price_rules.append({"name":"Giờ vàng","start":time_to_str(dtime(18,0)),"end":time_to_str(dtime(22,0)),"multiplier":1.5,"fixed":0.0,"weekday":None})
+        self.price_rules.append({"name":"Giờ thường","start":time_to_str(dtime(10,0)),"end":time_to_str(dtime(18,0)),"multiplier":1.0,"fixed":0.0,"weekday":None})
+        # Voucher
+        self.vouchers["HAPPY"] = {"code":"HAPPY","percent":10.0,"amount":0.0,"min_subtotal":50000.0,"active":True,"auto_apply":True}
+
+    def _load_or_seed(self):
+        if os.path.exists(self.filepath):
+            try:
+                with open(self.filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self.tables = data.get("tables", {})
+                # nếu thiếu hoặc rỗng, seed lại
+                if not self.tables or len(self.tables) < 12:
+                    self._seed()
+                else:
+                    self.products = data.get("products", {})
+                    self.vouchers = data.get("vouchers", {})
+                    self.price_rules = data.get("price_rules", [])
+                # Orders: convert datetime back
+                self.orders = {}
+                for k, o in data.get("orders", {}).items():
+                    o["started_at"] = str_to_dt(o.get("started_at"))
+                    o["closed_at"] = str_to_dt(o.get("closed_at"))
+                    self.orders[int(k)] = o
+                self.order_items = data.get("order_items", [])
+                # Reservations: convert datetime back
+                self.reservations = []
+                for r in data.get("reservations", []):
+                    r["start_at"] = str_to_dt(r.get("start_at"))
+                    r["end_at"] = str_to_dt(r.get("end_at"))
+                    self.reservations.append(r)
+                self._order_seq = data.get("_order_seq", 1)
+            except:
+                self._seed()
+        else:
+            self._seed()
+        # đảm bảo có file ngay từ đầu
+        self._save()
+
+    def _save(self):
+        # Convert datetimes to strings
+        orders_dump = {}
+        for oid, o in self.orders.items():
+            orders_dump[str(oid)] = {
+                **o,
+                "started_at": dt_to_str(o.get("started_at")),
+                "closed_at": dt_to_str(o.get("closed_at")),
+            }
+        reservations_dump = []
+        for r in self.reservations:
+            reservations_dump.append({
+                **r,
+                "start_at": dt_to_str(r.get("start_at")),
+                "end_at": dt_to_str(r.get("end_at")),
+            })
+        data = {
+            "tables": self.tables,
+            "products": self.products,
+            "vouchers": self.vouchers,
+            "price_rules": self.price_rules,
+            "orders": orders_dump,
+            "order_items": self.order_items,
+            "reservations": reservations_dump,
+            "_order_seq": self._order_seq,
+        }
+        with open(self.filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    # ---- Helpers ----
+    def running_count(self):
+        return sum(1 for t in self.tables.values() if t["status"] == "running")
+
+    def table_color(self, status):
+        return STATUS_COLORS.get(status, STATUS_COLORS["free"])
+
+    def _compute_time_charge(self, started_at, now):
+        total = 0.0
+        if not started_at:
+            return 0.0
+        block = timedelta(minutes=15)
+        t = started_at
+        while t < now:
+            t2 = min(t + block, now)
+            weekday = t.weekday()
+            applied = []
+            for r in self.price_rules:
+                if r["weekday"] is not None and r["weekday"] != weekday:
+                    continue
+                st = datetime.combine(t.date(), str_to_time(r["start"]))
+                et = datetime.combine(t.date(), str_to_time(r["end"]))
+                if st <= t < et:
+                    applied.append(r)
+            if applied:
+                r = sorted(applied, key=lambda x: (x["fixed"] > 0, x["multiplier"]), reverse=True)[0]
+                minutes = (t2 - t).total_seconds() / 60.0
+                if r["fixed"] > 0:
+                    total += r["fixed"] * (minutes / 60.0)
+                else:
+                    base_per_hour = 10000.0
+                    total += base_per_hour * r["multiplier"] * (minutes / 60.0)
+            t = t2
+        return round(total, 0)
+
+    def _auto_apply_voucher(self, order):
+        subtotal = order["subtotal"]
+        best_code, best_value = None, 0.0
+        for v in self.vouchers.values():
+            if not v["active"] or not v["auto_apply"]:
+                continue
+            if subtotal < v["min_subtotal"]:
+                continue
+            value = max(subtotal * (v["percent"] / 100.0), v["amount"])
+            if value > best_value:
+                best_value = value
+                best_code = v["code"]
+        order["voucher_code"] = best_code
+        order["discount"] = round(best_value, 0)
+
+    def recalc_order(self, order_id):
+        order = self.orders.get(order_id)
+        if not order:
+            return
+        items = [it for it in self.order_items if it["order_id"] == order_id]
+        order["subtotal"] = sum((it["unit_price"] * it["qty"] - it["discount"]) for it in items)
+        if order["status"] == "open":
+            order["time_charge"] = self._compute_time_charge(order["started_at"], datetime.now())
+        self._auto_apply_voucher(order)
+        order["total"] = max(0.0, round(order["subtotal"] + order["time_charge"] - order["discount"], 0))
+
+    # ---- Reservations & Check-in ----
+    def create_reservation(self, table_id, name, phone, start_at, end_at):
+        tbl = self.tables.get(table_id)
+        if not tbl:
+            return False, "Không tìm thấy bàn."
+        if tbl["status"] not in ("free", "reserved"):
+            return False, "Bàn không sẵn sàng cho đặt trước."
+        self.reservations.append({
+            "id": len(self.reservations)+1,
+            "table_id": table_id,
+            "customer_name": name,
+            "customer_phone": phone,
+            "start_at": start_at,
+            "end_at": end_at,
+            "status": "booked",
+        })
+        tbl["status"] = "reserved"
+        self._save()
+        return True, "Đặt bàn thành công."
+
+    def checkin_table(self, table_id):
+        if table_id not in self.tables:
+            return False, f"Không tìm thấy bàn ID {table_id}."
+        tbl = self.tables.get(table_id)
+        if tbl["status"] not in ("free", "reserved"):
+            return False, "Bàn không sẵn sàng để check-in."
+        oid = self._order_seq
+        self._order_seq += 1
+        order = {
+            "id": oid,
+            "table_id": table_id,
+            "status": "open",
+            "started_at": datetime.now(),
+            "closed_at": None,
+            "subtotal": 0.0,
+            "time_charge": 0.0,
+            "discount": 0.0,
+            "total": 0.0,
+            "voucher_code": None,
+            "customer_username": self.users.current_user, # để tích điểm
+        }
+        self.orders[oid] = order
+        tbl["status"] = "running"
+        tbl["current_order_id"] = oid
+        self.recalc_order(oid)
+        self._save()
+        return True, oid
 if __name__ == "__main__":
     PastelAuthApp().mainloop()
