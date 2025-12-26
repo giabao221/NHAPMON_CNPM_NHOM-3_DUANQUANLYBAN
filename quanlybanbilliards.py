@@ -755,6 +755,7 @@ class PastelAuthApp(tk.Tk):
         self._center()
 
         self.store = UserStore()
+        self.beer = BeerStore(self.store)
         self._setup_style()
 
         container = ttk.Frame(self, style="Root.TFrame")
@@ -762,13 +763,16 @@ class PastelAuthApp(tk.Tk):
 
         # tạo các trang
         self.pages = {
-            "login": LoginPage(container, self, self.store),
-            "register": RegisterPage(container, self, self.store),
-            "forgot": ForgotPage(container, self, self.store),
-            "reset": ResetPage(container, self, self.store),
-            "home": HomePage(container, self, self.store),
-        }
+    "login": LoginPage(container, self, self.store),
+    "register": RegisterPage(container, self, self.store),
+    "forgot": ForgotPage(container, self, self.store),
+    "reset": ResetPage(container, self, self.store),
+    "home": HomePage(container, self, self.store),
 
+    # 👇 TRANG NGHIỆP VỤ
+    "tables": TablesPage(container, self, self.beer),
+    "order": OrderPage(container, self, self.beer),
+}
         # đặt layout stack
         for p in self.pages.values():
             p.place(relx=0, rely=0, relwidth=1, relheight=1)
