@@ -768,6 +768,8 @@ class PastelAuthApp(tk.Tk):
     "forgot": ForgotPage(container, self, self.store),
     "reset": ResetPage(container, self, self.store),
     "home": HomePage(container, self, self.store),
+
+    #  TRANG NGHIỆP VỤ
     "tables": TablesPage(container, self, self.beer),
     "order": OrderPage(container, self, self.beer),
 }
