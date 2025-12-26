@@ -1,0 +1,230 @@
+{
+  "tables": {
+    "1": {
+      "id": 1,
+      "code": "T01",
+      "area": "Khu A",
+      "status": "free",
+      "current_order_id": null
+    },
+    "2": {
+      "id": 2,
+      "code": "T02",
+      "area": "Khu A",
+      "status": "free",
+      "current_order_id": null
+    },
+    "3": {
+      "id": 3,
+      "code": "T03",
+      "area": "Khu A",
+      "status": "free",
+      "current_order_id": null
+    },
+    "4": {
+      "id": 4,
+      "code": "T04",
+      "area": "Khu A",
+      "status": "free",
+      "current_order_id": null
+    },
+    "5": {
+      "id": 5,
+      "code": "T05",
+      "area": "Khu A",
+      "status": "free",
+      "current_order_id": null
+    },
+    "6": {
+      "id": 6,
+      "code": "T06",
+      "area": "Khu A",
+      "status": "free",
+      "current_order_id": null
+    },
+    "7": {
+      "id": 7,
+      "code": "T07",
+      "area": "Khu B",
+      "status": "free",
+      "current_order_id": null
+    },
+    "8": {
+      "id": 8,
+      "code": "T08",
+      "area": "Khu B",
+      "status": "free",
+      "current_order_id": null
+    },
+    "9": {
+      "id": 9,
+      "code": "T09",
+      "area": "Khu B",
+      "status": "free",
+      "current_order_id": null
+    },
+    "10": {
+      "id": 10,
+      "code": "T10",
+      "area": "Khu B",
+      "status": "free",
+      "current_order_id": null
+    },
+    "11": {
+      "id": 11,
+      "code": "T11",
+      "area": "Khu B",
+      "status": "free",
+      "current_order_id": null
+    },
+    "12": {
+      "id": 12,
+      "code": "T12",
+      "area": "Khu B",
+      "status": "free",
+      "current_order_id": null
+    }
+  },
+  "products": {
+    "1": {
+      "id": 1,
+      "sku": "BEER1",
+      "name": "Bia Lager",
+      "base_price": 20000,
+      "unit": "chai",
+      "stock_qty": 200
+    },
+    "2": {
+      "id": 2,
+      "sku": "SNACK1",
+      "name": "Bim bim",
+      "base_price": 15000,
+      "unit": "bì",
+      "stock_qty": 120
+    },
+    "3": {
+      "id": 3,
+      "sku": "SNACK2",
+      "name": "Đậu phộng",
+      "base_price": 15000,
+      "unit": "dĩa",
+      "stock_qty": 50
+    },
+    "4": {
+      "id": 4,
+      "sku": "DRINK1",
+      "name": "Sting",
+      "base_price": 25000,
+      "unit": "chai",
+      "stock_qty": 50
+    },
+    "5": {
+      "id": 5,
+      "sku": "SNACK3",
+      "name": "Khô gà",
+      "base_price": 35000,
+      "unit": "dĩa",
+      "stock_qty": 50
+    },
+    "6": {
+      "id": 6,
+      "sku": "SNACK4",
+      "name": "Khô mực",
+      "base_price": 150000,
+      "unit": "dĩa",
+      "stock_qty": 50
+    }
+  },
+  "vouchers": {
+    "HAPPY": {
+      "code": "HAPPY",
+      "percent": 10.0,
+      "amount": 0.0,
+      "min_subtotal": 50000.0,
+      "active": true,
+      "auto_apply": true
+    }
+  },
+  "price_rules": [
+    {
+      "name": "Giờ vàng",
+      "start": "18:00",
+      "end": "22:00",
+      "multiplier": 1.5,
+      "fixed": 0.0,
+      "weekday": null
+    },
+    {
+      "name": "Giờ thường",
+      "start": "10:00",
+      "end": "18:00",
+      "multiplier": 1.0,
+      "fixed": 0.0,
+      "weekday": null
+    }
+  ],
+  "orders": {
+    "1": {
+      "id": 1,
+      "table_id": 1,
+      "status": "paid",
+      "started_at": "2025-12-26T08:24:36.002689",
+      "closed_at": "2025-12-26T08:24:41.993416",
+      "subtotal": 75000.0,
+      "time_charge": 0.0,
+      "discount": 7500.0,
+      "total": 67500.0,
+      "voucher_code": "HAPPY",
+      "customer_username": "123"
+    }
+  },
+  "order_items": [
+    {
+      "id": 1,
+      "order_id": 1,
+      "product_id": 3,
+      "qty": 1.0,
+      "unit_price": 15000,
+      "discount": 0.0,
+      "served": false
+    },
+    {
+      "id": 2,
+      "order_id": 1,
+      "product_id": 3,
+      "qty": 1.0,
+      "unit_price": 15000,
+      "discount": 0.0,
+      "served": false
+    },
+    {
+      "id": 3,
+      "order_id": 1,
+      "product_id": 3,
+      "qty": 1.0,
+      "unit_price": 15000,
+      "discount": 0.0,
+      "served": false
+    },
+    {
+      "id": 4,
+      "order_id": 1,
+      "product_id": 3,
+      "qty": 1.0,
+      "unit_price": 15000,
+      "discount": 0.0,
+      "served": false
+    },
+    {
+      "id": 5,
+      "order_id": 1,
+      "product_id": 3,
+      "qty": 1.0,
+      "unit_price": 15000,
+      "discount": 0.0,
+      "served": false
+    }
+  ],
+  "reservations": [],
+  "_order_seq": 2
+}
